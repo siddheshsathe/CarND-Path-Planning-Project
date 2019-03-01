@@ -13,7 +13,7 @@ using std::vector;
 
 const double safe_distance = 20.0; // in meters
 const double lane_width = 4.0; // in meters
-const double max_safe_speed = 48.5; // mph
+const double max_safe_speed = 49.5; // mph
 
 class Vehicle
 {
