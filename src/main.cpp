@@ -134,12 +134,12 @@ int main() {
               Vehicle v(sensor_fusion[i]);
               v.s = predict_vehicle_future_s(v.s, v.speed, prev_size);
               if (v.lane < lane && car_d - v.d > 4.0) {
-                bool too_close_for_lane_shift = (v.s > car_s - safe_distance / 2) && (v.s < car_s + safe_distance / 2);
+                bool too_close_for_lane_shift = std::abs(v.s - car_s) > safe_distance + 20.0;
                 left_lane_free = too_close_for_lane_shift ? false : true;
               }
               else if (v.lane > lane && v.d - car_d > 4.0)
               {
-                bool too_close_for_lane_shift = (v.s > car_s - safe_distance / 2) && (v.s < car_s + safe_distance / 2);
+                bool too_close_for_lane_shift = std::abs(v.s - car_s) > safe_distance + 20.0;
                 right_lane_free = too_close_for_lane_shift ? false : true;
               }
 
