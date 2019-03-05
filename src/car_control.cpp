@@ -2,14 +2,7 @@
 #define CAR_CONTROL_
 
 #include <math.h>
-#include <iostream>
-#include <string>
-#include <vector>
 #include "json.hpp"
-
-// for convenience
-using std::string;
-using std::vector;
 
 const double safe_distance = 20.0; // in meters
 const double lane_width = 4.0; // in meters
@@ -32,6 +25,7 @@ Vehicle::Vehicle(nlohmann::json sensor_fusion)
   d = sensor_fusion[6];
   vx = sensor_fusion[3];
   vy = sensor_fusion[4];
+  speed = sqrt(vx * vx + vy * vy);
 
   if (d < 0) {
     lane = -1;

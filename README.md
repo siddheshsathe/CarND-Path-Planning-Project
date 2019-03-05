@@ -1,5 +1,10 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
+<p align="center">
+<a href="https://www.youtube.com/watch?v=KKQ2XqPRWwo"><img src="./path_planning.gif" alt="Path Planning" width="70%" height="70%">
+</a>
+<br> Path Planning
+</p>
    
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).  
@@ -10,7 +15,7 @@ sudo chmod u+x {simulator_file_name}
 ```
 
 ### Goals
-In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
+In this project the goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
 
 #### The map of the highway is in data/highway_map.txt
 Each waypoint in the list contains  [x,y,s,dx,dy] values. x and y are the waypoint's map coordinate position, the s value is the distance along the road to get to that waypoint in meters, the dx and dy values define the unit normal vector pointing outward of the highway loop.
@@ -59,18 +64,6 @@ the path has processed since last time.
 
 ["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
 
-## Details
-
-1. The car uses a perfect controller and will visit every (x,y) point it recieves in the list every .02 seconds. The units for the (x,y) points are in meters and the spacing of the points determines the speed of the car. The vector going from a point to the next point in the list dictates the angle of the car. Acceleration both in the tangential and normal directions is measured along with the jerk, the rate of change of total Acceleration. The (x,y) point paths that the planner recieves should not have a total acceleration that goes over 10 m/s^2, also the jerk should not go over 50 m/s^3. (NOTE: As this is BETA, these requirements might change. Also currently jerk is over a .02 second interval, it would probably be better to average total acceleration over 1 second and measure jerk from that.
-
-2. There will be some latency between the simulator running and the path planner returning a path, with optimized code usually its not very long maybe just 1-3 time steps. During this delay the simulator will continue using points that it was last given, because of this its a good idea to store the last points you have used so you can have a smooth transition. previous_path_x, and previous_path_y can be helpful for this transition since they show the last points given to the simulator controller with the processed points already removed. You would either return a path that extends this previous path or make sure to create a new path that has a smooth transition with this last path.
-
-## Tips
-
-A really helpful resource for doing this project and creating smooth trajectories was using http://kluge.in-chemnitz.de/opensource/spline/, the spline function is in a single hearder file is really easy to use.
-
----
-
 ## Dependencies
 
 * cmake >= 3.5
@@ -91,55 +84,78 @@ A really helpful resource for doing this project and creating smooth trajectorie
     cd uWebSockets
     git checkout e94b6e1
     ```
+## Implementation
 
-## Editor Settings
+The implementation includes
+* Addition of car_control.cpp
+* Modification of main.cpp
 
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
+Let's see these file in detail now.
+### `car_control.cpp` Implementation
+This file is responsible for handling `Vehicle` class two functions `check_safe_distance` and `predict_vehicle_future_s`.
+1. `Vehicle` class
+This class handles data coming from `sensor_fusion` and has variables named as `s`, `d`, `vx`, `vy`, `lane`, `speed`.
+Depending on the `d` value of car and lane width which is 4 meters, its lane is calculated.
+```cpp
+  if (d < 0) {
+    lane = -1;
+  }
+  else if ((0 <= d) & (d < 4))
+  {
+    lane = 0;
+  }
+  else if ((0 <= 4) & (d < 8))
+  {
+    lane = 1;
+  }
+  else if ((0 <= 8) & (d < 12))
+  {
+    lane = 2;
+  }
+```
+Also, the `speed` is calculated using `vx` and `vy` values.
+```cpp
+speed = sqrt(vx * vx + vy * vy);
+```
 
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
+2. `check_safe_distance` function
+This function accepts ego car's `s` value and detected vehicle's `s` value and returns
+    * `true`: if ego car is behind detected vehicle AND distance between them is more than the `safe_distance`
+    * `false`: otherwise
 
-## Code Style
+3. `predict_vehicle_future_s` function
+This predicts the detected vehicle's `s` value in future. This is helpful, when the ego car is about to change the lane but there's a fast moving vehicle in the same lane where ego car will be shifting.
+Using this function, the ego car will predict that, if it switches the lane to that particular lane where a fast moving car is approaching from back, it will abort lane switch. Instead, it will slow down its speed to avoid collition to the car in front of her.
+```cpp
+if (lane_change && left_lane_free) {
+    lane -= 1;
+    ref_vel -= 0.224 * 1.5;
+}
+```
 
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
+### `main.cpp` Implementations
+In this file, we've taken <b>4</b> states for our path planning's state machine.
+1. `too_close`: this checks if the car detected via sensor_fusion is too close (< 30m close)
+2. `left_lane_free`, `right_lane_free`: if above condition holds true, it will check whether the left or right lane is free and will set the value accordingly
+3. `prepare_lane_change`: based on above both conditions true, will prepare to lane change
+4. `lane_change`: when done preparing lane change, lane will be changed
 
-## Project Instructions and Rubric
+For speed control, we're creating 3 waypoints 30m aparts from each other. Using `spline`, we're traversing through these points to create our total `50` waypoints for car to move forward.
+```cpp
+vector<double> next_wp0 = getXY(car_s + 30, (lane_width * lane + lane_width / 2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+vector<double> next_wp1 = getXY(car_s + 60, (lane_width * lane + lane_width / 2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+vector<double> next_wp2 = getXY(car_s + 90, (lane_width * lane + lane_width / 2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+```
 
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
+## Valgrind
+Here, I've taken care of memory leaks. Have validated the `path_planning` binary with [valgrind](http://valgrind.org/) tool and found that there's no memleaks possible with this code.
+See attached valgrind logs named `valgrind_logs.txt`.
 
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-
+```bash
+==13585== LEAK SUMMARY:
+==13585==    definitely lost: 0 bytes in 0 blocks
+==13585==    indirectly lost: 0 bytes in 0 blocks
+==13585==      possibly lost: 0 bytes in 0 blocks
+==13585==    still reachable: 734,462 bytes in 219 blocks
+==13585==         suppressed: 0 bytes in 0 blocks
+```
